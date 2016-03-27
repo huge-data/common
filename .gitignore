@@ -1,7 +1,11 @@
-# Build products
-target/
+.classpath
+.project
+.settings/
 
-# IntelliJ data
 *.iml
 .idea/
-.ipr
+
+*~
+target/
+logs/
+
