@@ -2,10 +2,12 @@
 .project
 .settings/
 
+# build products
+target/
+
+# IntelliJ data
 *.iml
 .idea/
+.ipr.idea/
 
-*~
-target/
-logs/
 
