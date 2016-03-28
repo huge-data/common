@@ -1,33 +1,31 @@
-Confluent Commons
-=================
 
-Contains 3 libraries: [metrics](metrics), [config](config), [utils](utils).
+# Confluent Commons
 
-
-# Development
-
-## Overview
-
-Typically you will run standard maven commands such as `mvn install` from the top-level directory (i.e. the directory
-that contains this `README` file).  The sections below explain how to build specific sub-projects independently.
+> Confluent公共工具包，包含3个库: [metrics](metrics), [config](config), [utils](utils)。
 
 
-## Metrics
+# 项目构建
 
-To build the `metrics` sub-project independently, run this from the parent directory:
+## 概括
+
+> 在运行下面命令之前，需要在主目录下运行`mvn install`，下面是分别运行每个子模块。
+
+## Metrics模块
+
+> 运行下面命令来构建Metrics子模块:
 
     $ mvn -pl :common-metrics package
 
 
-## Config
+## Config模块
 
-To build the `config` sub-project independently, run this from the parent directory:
+> 运行下面命令来构建Config子模块:
 
     $ mvn -pl :common-config package
 
 
-## Utils
+## Utils模块
 
-To build the `utils` sub-project independently, run this from the parent directory:
+> 运行下面命令来构建Utils子模块:
 
     $ mvn -pl :common-utils package

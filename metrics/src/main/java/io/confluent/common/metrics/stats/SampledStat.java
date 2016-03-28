@@ -1,154 +1,212 @@
-/**
- * Copyright 2015 Confluent Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
-
-/**
- * Original license:
- *
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE
- * file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file
- * to You under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
- * License. You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
- * specific language governing permissions and limitations under the License.
- */
 package io.confluent.common.metrics.stats;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import io.confluent.common.metrics.MeasurableStat;
 import io.confluent.common.metrics.MetricConfig;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * A SampledStat records a single scalar value measured over one or more samples. Each sample is
- * recorded over a configurable window. The window can be defined by number of events or ellapsed
- * time (or both, if both are given the window is complete when <i>either</i> the event count or
- * ellapsed time criterion is met). <p> All the samples are combined to produce the measurement.
- * When a window is complete the oldest sample is cleared and recycled to begin recording the next
- * sample.
+ * 采样信号
  *
- * Subclasses of this class define different statistics measured using this basic pattern.
+ * 用于记录多个样本计算得到的单个标量值，每个样本是通过一个可配值的窗口记录得到的，
+ * 窗口可以是事件数量或者耗时（或者两者，也就是其中任何一个条件满足就可以），计算是对所有样本进行的。
+ * 当一个窗口完成后，旧的样本被清楚，然后重新采样。该抽象类的子类使用该类中的基本模式来定义不同的统计计算指标。
+ *
+ * @author wanggang
+ *
  */
 public abstract class SampledStat implements MeasurableStat {
 
-  protected List<Sample> samples;
-  private double initialValue;
-  private int current = 0;
+	// 样本集合
+	protected List<Sample> samples;
+	// 初始值
+	private double initialValue;
+	// 当前采样游标
+	private int current = 0;
 
-  public SampledStat(double initialValue) {
-    this.initialValue = initialValue;
-    this.samples = new ArrayList<Sample>(2);
-  }
+	public SampledStat(double initialValue) {
+		this.initialValue = initialValue;
+		this.samples = new ArrayList<>(2);
+	}
 
-  @Override
-  public void record(MetricConfig config, double value, long timeMs) {
-    Sample sample = current(timeMs);
-    if (sample.isComplete(timeMs, config)) {
-      sample = advance(config, timeMs);
-    }
-    update(sample, config, value, timeMs);
-    sample.eventCount += 1;
-  }
+	/**
+	 * 记录采样数据
+	 *
+	 * 	@param config 指标使用的配置
+	 * @param value  需要记录的值
+	 * @param timeMs 记录产生的时间，POSIX时间格式，毫秒单位
+	 */
+	@Override
+	public void record(MetricConfig config, double value, long timeMs) {
+		Sample sample = current(timeMs);
+		if (sample.isComplete(timeMs, config)) {
+			// 采样完成，需要进行下一步操作
+			sample = advance(config, timeMs);
+		}
+		update(sample, config, value, timeMs);
+		sample.eventCount += 1;
+	}
 
-  private Sample advance(MetricConfig config, long timeMs) {
-    this.current = (this.current + 1) % config.samples();
-    if (this.current >= samples.size()) {
-      Sample sample = newSample(timeMs);
-      this.samples.add(sample);
-      return sample;
-    } else {
-      Sample sample = current(timeMs);
-      sample.reset(timeMs);
-      return sample;
-    }
-  }
+	/**
+	 * 向前操作
+	 *
+	 * @param config   配置
+	 * @param timeMs   时间
+	 * @return
+	 */
+	private Sample advance(MetricConfig config, long timeMs) {
+		this.current = (this.current + 1) % config.samples();
+		if (this.current >= samples.size()) {
+			Sample sample = newSample(timeMs);
+			this.samples.add(sample);
+			return sample;
+		} else {
+			Sample sample = current(timeMs);
+			sample.reset(timeMs);
+			return sample;
+		}
+	}
 
-  protected Sample newSample(long timeMs) {
-    return new Sample(this.initialValue, timeMs);
-  }
+	/**
+	 * 获取新的样本
+	 *
+	 * @param timeMs 时间
+	 * @return
+	 */
+	protected Sample newSample(long timeMs) {
+		return new Sample(this.initialValue, timeMs);
+	}
 
-  @Override
-  public double measure(MetricConfig config, long now) {
-    purgeObsoleteSamples(config, now);
-    return combine(this.samples, config, now);
-  }
+	/**
+	 * 样本计算
+	 *
+	 * @param config   配置
+	 * @param now      当前时间
+	 */
+	@Override
+	public double measure(MetricConfig config, long now) {
+		purgeObsoleteSamples(config, now);
+		return combine(this.samples, config, now);
+	}
 
-  public Sample current(long timeMs) {
-    if (samples.size() == 0) {
-      this.samples.add(newSample(timeMs));
-    }
-    return this.samples.get(this.current);
-  }
+	/**
+	 * 获取当前样本
+	 *
+	 * @param timeMs 当前时间
+	 * @return
+	 */
+	public Sample current(long timeMs) {
+		if (samples.size() == 0) {
+			this.samples.add(newSample(timeMs));
+		}
+		return this.samples.get(this.current);
+	}
 
-  public Sample oldest(long now) {
-    if (samples.size() == 0) {
-      this.samples.add(newSample(now));
-    }
-    Sample oldest = this.samples.get(0);
-    for (int i = 1; i < this.samples.size(); i++) {
-      Sample curr = this.samples.get(i);
-      if (curr.lastWindowMs < oldest.lastWindowMs) {
-        oldest = curr;
-      }
-    }
-    return oldest;
-  }
+	/**
+	 * 获取最老的样本
+	 *
+	 * @param now  当前时间
+	 * @return
+	 */
+	public Sample oldest(long now) {
+		if (samples.size() == 0) {
+			this.samples.add(newSample(now));
+		}
+		Sample oldest = this.samples.get(0);
+		for (int i = 1; i < this.samples.size(); i++) {
+			Sample curr = this.samples.get(i);
+			if (curr.lastWindowMs < oldest.lastWindowMs) {
+				oldest = curr;
+			}
+		}
 
-  protected abstract void update(Sample sample, MetricConfig config, double value, long timeMs);
+		return oldest;
+	}
 
-  public abstract double combine(List<Sample> samples, MetricConfig config, long now);
+	/**
+	 * 更新样本
+	 *
+	 * @param sample   样本
+	 * @param config   配置
+	 * @param value    值
+	 * @param timeMs   时间爱呢
+	 */
+	protected abstract void update(Sample sample, MetricConfig config, double value, long timeMs);
 
-  /* Timeout any windows that have expired in the absence of any events */
-  protected void purgeObsoleteSamples(MetricConfig config, long now) {
-    long expireAge = config.samples() * config.timeWindowMs();
-    for (int i = 0; i < samples.size(); i++) {
-      Sample sample = this.samples.get(i);
-      if (now - sample.lastWindowMs >= expireAge) {
-        sample.reset(now);
-      }
-    }
-  }
+	/**
+	 * 根据样本集合计算Metric指标值
+	 *
+	 * @param samples   样本集合
+	 * @param config    计算指标的配置
+	 * @param now       当前时间
+	 * @return   指标计算值
+	 */
+	public abstract double combine(List<Sample> samples, MetricConfig config, long now);
 
-  protected static class Sample {
+	/**
+	 *  清理过时的样本
+	 *
+	 * @param config
+	 * @param now
+	 */
+	protected void purgeObsoleteSamples(MetricConfig config, long now) {
+		long expireAge = config.samples() * config.timeWindowMs();
+		for (int i = 0; i < samples.size(); i++) {
+			Sample sample = this.samples.get(i);
+			if (now - sample.lastWindowMs >= expireAge) {
+				sample.reset(now);
+			}
+		}
+	}
 
-    public double initialValue;
-    public long eventCount;
-    public long lastWindowMs;
-    public double value;
+	/**
+	 * 样本数据模型
+	 *
+	 * @author wanggang
+	 *
+	 */
+	protected static class Sample {
 
-    public Sample(double initialValue, long now) {
-      this.initialValue = initialValue;
-      this.eventCount = 0;
-      this.lastWindowMs = now;
-      this.value = initialValue;
-    }
+		// 初始值，重置的时候使用
+		public double initialValue;
+		// 事件数
+		public long eventCount;
+		// 上一次窗口时间
+		public long lastWindowMs;
+		// 样本值
+		public double value;
 
-    public void reset(long now) {
-      this.eventCount = 0;
-      this.lastWindowMs = now;
-      this.value = initialValue;
-    }
+		public Sample(double initialValue, long now) {
+			this.initialValue = initialValue;
+			this.eventCount = 0;
+			this.lastWindowMs = now;
+			this.value = initialValue;
+		}
 
-    public boolean isComplete(long timeMs, MetricConfig config) {
-      return timeMs - lastWindowMs >= config.timeWindowMs() || eventCount >= config.eventWindow();
-    }
-  }
+		/**
+		 * 重置
+		 *
+		 * @param now 当前时间
+		 */
+		public void reset(long now) {
+			this.eventCount = 0;
+			this.lastWindowMs = now;
+			this.value = initialValue;
+		}
+
+		/**
+		 * 判断采样是否完成
+		 *
+		 * @param timeMs  当前时间爱呢
+		 * @param config  Metric计算配置信息
+		 * @return
+		 */
+		public boolean isComplete(long timeMs, MetricConfig config) {
+			return timeMs - lastWindowMs >= config.timeWindowMs()
+					|| eventCount >= config.eventWindow();
+		}
+
+	}
 
 }

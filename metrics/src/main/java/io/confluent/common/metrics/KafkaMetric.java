@@ -1,82 +1,71 @@
-/**
- * Copyright 2015 Confluent Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
-
-/**
- * Original license:
- *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package io.confluent.common.metrics;
 
 import io.confluent.common.utils.Time;
 
+/**
+ * Kafka指标对象
+ *
+ * @author wanggang
+ *
+ */
 public final class KafkaMetric implements Metric {
 
-  private MetricName metricName;
-  private final Object lock;
-  private final Time time;
-  private final Measurable measurable;
-  private MetricConfig config;
+	// 指标名称信息
+	private MetricName metricName;
+	// 同步锁
+	private final Object lock;
+	// 时钟
+	private final Time time;
+	// 指标计算对象
+	private final Measurable measurable;
+	// 指标计算配置对象
+	private MetricConfig config;
 
-  KafkaMetric(Object lock, MetricName metricName, Measurable measurable, MetricConfig config,
-              Time time) {
-    super();
-    this.metricName = metricName;
-    this.lock = lock;
-    this.measurable = measurable;
-    this.config = config;
-    this.time = time;
-  }
+	KafkaMetric(Object lock, MetricName metricName, Measurable measurable, MetricConfig config,
+			Time time) {
+		super();
+		this.metricName = metricName;
+		this.lock = lock;
+		this.measurable = measurable;
+		this.config = config;
+		this.time = time;
+	}
 
-  MetricConfig config() {
-    return this.config;
-  }
+	MetricConfig config() {
+		return this.config;
+	}
 
-  @Override
-  public MetricName metricName() {
-    return this.metricName;
-  }
+	@Override
+	public MetricName metricName() {
+		return this.metricName;
+	}
 
-  @Override
-  public double value() {
-    synchronized (this.lock) {
-      return value(time.milliseconds());
-    }
-  }
+	@Override
+	public double value() {
+		synchronized (this.lock) {
+			return value(time.milliseconds());
+		}
+	}
 
-  double value(long timeMs) {
-    return this.measurable.measure(config, timeMs);
-  }
+	/**
+	 * 计算指标值
+	 *
+	 * @param timeMs  时间
+	 * @return
+	 */
+	double value(long timeMs) {
+		return this.measurable.measure(config, timeMs);
+	}
 
-  public void config(MetricConfig config) {
-    synchronized (lock) {
-      this.config = config;
-    }
-  }
+	/**
+	 * 指标计算配置，同步操作
+	 *
+	 * @param config
+	 */
+	public void config(MetricConfig config) {
+		synchronized (lock) {
+			this.config = config;
+		}
+	}
+
 }

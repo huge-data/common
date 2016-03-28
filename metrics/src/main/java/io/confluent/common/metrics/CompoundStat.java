@@ -1,68 +1,47 @@
-/**
- * Copyright 2015 Confluent Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
-
-/**
- * Original license:
- *
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package io.confluent.common.metrics;
 
 import java.util.List;
 
 /**
- * A compound stat is a stat where a single measurement and associated data structure feeds many
- * metrics. This is the example for a histogram which has many associated percentiles.
+ * 组合信号接口，用于表示一组基于同一个计算方法得到的Metric
+ *
+ * 例如：可以用于存储多个百分数值来展示统计直方图
+ *
+ * @author wanggang
+ *
  */
 public interface CompoundStat extends Stat {
 
-  public List<NamedMeasurable> stats();
+	// 命名计算器列表
+	public List<NamedMeasurable> stats();
 
-  public static class NamedMeasurable {
+	/**
+	 * 命名计算器
+	 *
+	 * @author wanggang
+	 *
+	 */
+	public static class NamedMeasurable {
 
-    private final MetricName name;
-    private final Measurable stat;
+		// 指标名称信息
+		private final MetricName name;
+		// 计算器
+		private final Measurable stat;
 
-    public NamedMeasurable(MetricName name, Measurable stat) {
-      super();
-      this.name = name;
-      this.stat = stat;
-    }
+		public NamedMeasurable(MetricName name, Measurable stat) {
+			super();
+			this.name = name;
+			this.stat = stat;
+		}
 
-    public MetricName name() {
-      return name;
-    }
+		public MetricName name() {
+			return name;
+		}
 
-    public Measurable stat() {
-      return stat;
-    }
+		public Measurable stat() {
+			return stat;
+		}
 
-  }
+	}
 
 }

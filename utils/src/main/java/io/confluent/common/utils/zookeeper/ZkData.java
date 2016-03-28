@@ -1,38 +1,31 @@
-/**
- * Copyright 2015 Confluent Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
-
 package io.confluent.common.utils.zookeeper;
 
 import org.apache.zookeeper.data.Stat;
 
+/**
+ * Zookeeper数据模型
+ *
+ * @author wanggang
+ *
+ */
 public class ZkData {
 
-  private final String data;
-  private final Stat stat;
+	// 数据
+	private final String data;
+	// 信息对象
+	private final Stat stat;
 
-  public ZkData(String data, Stat stat) {
-    this.data = data;
-    this.stat = stat;
-  }
+	public ZkData(String data, Stat stat) {
+		this.data = data;
+		this.stat = stat;
+	}
 
-  public String getData() {
-    return this.data;
-  }
+	public String getData() {
+		return this.data;
+	}
 
-  public Stat getStat() {
-    return this.stat;
-  }
+	public Stat getStat() {
+		return this.stat;
+	}
+
 }

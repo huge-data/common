@@ -1,34 +1,7 @@
-/**
- * Copyright 2015 Confluent Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
-
-/**
- * Original license:
- *
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE
- * file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file
- * to You under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
- * License. You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
- * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
- * specific language governing permissions and limitations under the License.
- */
 package io.confluent.common.metrics;
+
+import io.confluent.common.utils.Time;
+import io.confluent.common.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,170 +9,186 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import io.confluent.common.utils.Time;
-import io.confluent.common.utils.Utils;
-
 /**
- * A sensor applies a continuous sequence of numerical values to a set of associated metrics. For
- * example a sensor on message size would record a sequence of message sizes using the {@link
- * #record(double)} api and would maintain a set of metrics about request sizes such as the average
- * or max.
+ * 传感器类，将连续的数值序列应用到关联的Metric集合中
+ *
+ * 例如：一个用于信息大小的传感器，使用 {@link #record(double)} 接口记录一个信息大小序列，
+ * 并且维护一个关于请求大小（例如：平均值、最大值）的Metric集合。
+ *
+ * @author wanggang
+ *
  */
 public final class Sensor {
 
-  private final Metrics registry;
-  private final String name;
-  private final Sensor[] parents;
-  private final List<Stat> stats;
-  private final List<KafkaMetric> metrics;
-  private final MetricConfig config;
-  private final Time time;
+	// 批量Sensor和Metric的注册表
+	private final Metrics registry;
+	// 传感器名称
+	private final String name;
+	// 父传感器数组
+	private final Sensor[] parents;
+	// 指标信号列表
+	private final List<Stat> stats;
+	// Kafka指标列表
+	private final List<KafkaMetric> metrics;
+	// 指标计算配置
+	private final MetricConfig config;
+	// 时钟
+	private final Time time;
 
-  Sensor(Metrics registry, String name, Sensor[] parents, MetricConfig config, Time time) {
-    super();
-    this.registry = registry;
-    this.name = Utils.notNull(name);
-    this.parents = parents == null ? new Sensor[0] : parents;
-    this.metrics = new ArrayList<KafkaMetric>();
-    this.stats = new ArrayList<Stat>();
-    this.config = config;
-    this.time = time;
-    checkForest(new HashSet<Sensor>());
-  }
+	Sensor(Metrics registry, String name, Sensor[] parents, MetricConfig config, Time time) {
+		super();
+		this.registry = registry;
+		this.name = Utils.notNull(name);
+		this.parents = parents == null ? new Sensor[0] : parents;
+		this.metrics = new ArrayList<>();
+		this.stats = new ArrayList<>();
+		this.config = config;
+		this.time = time;
+		checkForest(new HashSet<Sensor>());
+	}
 
-  /* Validate that this sensor doesn't end up referencing itself */
-  private void checkForest(Set<Sensor> sensors) {
-    if (!sensors.add(this)) {
-      throw new IllegalArgumentException(
-          "Circular dependency in sensors: " + name() + " is its own parent.");
-    }
-    for (int i = 0; i < parents.length; i++) {
-      parents[i].checkForest(sensors);
-    }
-  }
+	/**
+	 * 检查事故否循环依赖，递归调用
+	 *
+	 * @param sensors 传感器集合
+	 */
+	private void checkForest(Set<Sensor> sensors) {
+		if (!sensors.add(this)) {
+			throw new IllegalArgumentException("Circular dependency in sensors: " + name()
+					+ " is its own parent.");
+		}
+		for (int i = 0; i < parents.length; i++) {
+			parents[i].checkForest(sensors);
+		}
+	}
 
-  /**
-   * The name this sensor is registered with. This name will be unique among all registered
-   * sensors.
-   */
-  public String name() {
-    return this.name;
-  }
+	/**
+	 * 传感器注册名，惟一的
+	 */
+	public String name() {
+		return this.name;
+	}
 
-  /**
-   * Record an occurrence, this is just short-hand for {@link #record(double) record(1.0)}
-   */
-  public void record() {
-    record(1.0);
-  }
+	/**
+	 * 记录产生的事件，{@link #record(double) record(1.0)} 的简写
+	 */
+	public void record() {
+		record(1.0);
+	}
 
-  /**
-   * Record a value with this sensor
-   *
-   * @param value The value to record
-   * @throws QuotaViolationException if recording this value moves a metric beyond its configured
-   *                                 maximum or minimum bound
-   */
-  public void record(double value) {
-    record(value, time.milliseconds());
-  }
+	/**
+	 * 使用该传感器记录事件数据
+	 *
+	 * @param value  需要记录的值
+	 * @throws QuotaViolationException 越界异常
+	 */
+	public void record(double value) {
+		record(value, time.milliseconds());
+	}
 
-  /**
-   * Record a value at a known time. This method is slightly faster than {@link #record(double)}
-   * since it will reuse the time stamp.
-   *
-   * @param value  The value we are recording
-   * @param timeMs The current POSIX time in milliseconds
-   * @throws QuotaViolationException if recording this value moves a metric beyond its configured
-   *                                 maximum or minimum bound
-   */
-  public void record(double value, long timeMs) {
-    synchronized (this) {
-      // increment all the stats
-      for (int i = 0; i < this.stats.size(); i++) {
-        this.stats.get(i).record(config, value, timeMs);
-      }
-      checkQuotas(timeMs);
-    }
-    for (int i = 0; i < parents.length; i++) {
-      parents[i].record(value, timeMs);
-    }
-  }
+	/**
+	 * 按照时间记录事件数据
+	 *
+	 * 该方法因为重用时间戳比 {@link #record(double)} 稍微快些
+	 *
+	 * @param value   需要记录的值
+	 * @param timeMs  当前时间，POSIX格式，毫秒单位
+	 * @throws QuotaViolationException  越界异常
+	 */
+	public void record(double value, long timeMs) {
+		synchronized (this) {
+			// 增加所有指标信号的记录数据
+			for (int i = 0; i < this.stats.size(); i++) {
+				this.stats.get(i).record(config, value, timeMs);
+			}
+			checkQuotas(timeMs);
+		}
+		// 在所有父传感器中增加记录数据
+		for (int i = 0; i < parents.length; i++) {
+			parents[i].record(value, timeMs);
+		}
+	}
 
-  /**
-   * Check if we have violated our quota for any metric that has a configured quota
-   */
-  private void checkQuotas(long timeMs) {
-    for (int i = 0; i < this.metrics.size(); i++) {
-      KafkaMetric metric = this.metrics.get(i);
-      MetricConfig config = metric.config();
-      if (config != null) {
-        Quota quota = config.quota();
-        if (quota != null) {
-          if (!quota.acceptable(metric.value(timeMs))) {
-            throw new QuotaViolationException(
-                metric.metricName() + " is in violation of its quota of " + quota.bound());
-          }
-        }
-      }
-    }
-  }
+	/**
+	 * 检查某个时间所有metric是否违反了越界条件
+	 *
+	 * @param timeMs  时间
+	 */
+	private void checkQuotas(long timeMs) {
+		for (int i = 0; i < this.metrics.size(); i++) {
+			KafkaMetric metric = this.metrics.get(i);
+			MetricConfig config = metric.config();
+			if (config != null) {
+				Quota quota = config.quota();
+				if (quota != null) {
+					if (!quota.acceptable(metric.value(timeMs))) {
+						throw new QuotaViolationException(metric.metricName()
+								+ " is in violation of its quota of " + quota.bound());
+					}
+				}
+			}
+		}
+	}
 
-  /**
-   * Register a compound statistic with this sensor with no config override
-   */
-  public void add(CompoundStat stat) {
-    add(stat, null);
-  }
+	/**
+	 * 注册（添加）一个组合信号，基于该传感器来注册，并且不进行配置覆盖
+	 *
+	 * @param stat  组合信号
+	 */
+	public void add(CompoundStat stat) {
+		add(stat, null);
+	}
 
-  /**
-   * Register a compound statistic with this sensor which yields multiple measurable quantities
-   * (like a histogram)
-   *
-   * @param stat   The stat to register
-   * @param config The configuration for this stat. If null then the stat will use the default
-   *               configuration for this sensor.
-   */
-  public synchronized void add(CompoundStat stat, MetricConfig config) {
-    this.stats.add(Utils.notNull(stat));
-    for (CompoundStat.NamedMeasurable m : stat.stats()) {
-      KafkaMetric metric = new KafkaMetric(this, m.name(), m.stat(),
-                                           config == null ? this.config : config, time);
-      this.registry.registerMetric(metric);
-      this.metrics.add(metric);
-    }
-  }
+	/**
+	 * 注册（添加）一个组合信号，基于该传感器来注册，得到多个计算数据（例如统计直方图数据）
+	 *
+	 * @param stat   组合信号
+	 * @param config 信号配置，如果为null则使用该传感器默认配置
+	 */
+	public synchronized void add(CompoundStat stat, MetricConfig config) {
+		// 添加该组合信号
+		this.stats.add(Utils.notNull(stat));
+		// 对该组合信号中的每个命名计算器进行指标注册和添加
+		for (CompoundStat.NamedMeasurable m : stat.stats()) {
+			KafkaMetric metric = new KafkaMetric(this, m.name(), m.stat(),
+					config == null ? this.config : config, time);
+			this.registry.registerMetric(metric);
+			this.metrics.add(metric);
+		}
+	}
 
-  /**
-   * Register a metric with this sensor
-   * @param metricName The name of the metric
-   * @param stat The statistic to keep
-   */
-  public void add(MetricName metricName, MeasurableStat stat) {
-    add(metricName, stat, null);
-  }
+	/**
+	 * 基于该传感器注册（添加）一个Metric
+	 *
+	 * @param metricName Metric名称信息
+	 * @param stat 需要保留的统计信号
+	 */
+	public void add(MetricName metricName, MeasurableStat stat) {
+		add(metricName, stat, null);
+	}
 
-  /**
-   * Register a metric with this sensor
-   *
-   * @param metricName The name of the metric
-   * @param stat        The statistic to keep
-   * @param config      A special configuration for this metric. If null use the sensor default
-   *                    configuration.
-   */
-  public synchronized void add(MetricName metricName, MeasurableStat stat, MetricConfig config) {
-    KafkaMetric metric = new KafkaMetric(new Object(),
-                                         Utils.notNull(metricName),
-                                         Utils.notNull(stat),
-                                         config == null ? this.config : config,
-                                         time);
-    this.registry.registerMetric(metric);
-    this.metrics.add(metric);
-    this.stats.add(stat);
-  }
+	/**
+	 * 基于该传感器注册一个Metric
+	 *
+	 * @param metricName  Metric名称信息
+	 * @param stat        需要保留的统计信号
+	 * @param config      该Metric的配置，如果为null则使用该传感器默认配置
+	 */
+	public synchronized void add(MetricName metricName, MeasurableStat stat, MetricConfig config) {
+		KafkaMetric metric = new KafkaMetric(new Object(), Utils.notNull(metricName),
+				Utils.notNull(stat), config == null ? this.config : config, time);
+		this.registry.registerMetric(metric);
+		this.metrics.add(metric);
+		this.stats.add(stat);
+	}
 
-  synchronized List<KafkaMetric> metrics() {
-    return Collections.unmodifiableList(this.metrics);
-  }
+	/**
+	 * 返回不可改变的Metric集合，同步操作
+	 *
+	 * @return
+	 */
+	synchronized List<KafkaMetric> metrics() {
+		return Collections.unmodifiableList(this.metrics);
+	}
 
 }
